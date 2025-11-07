@@ -1,0 +1,69 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: sbar_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sbar
+      POSTGRES_PASSWORD: sbarpass
+      POSTGRES_DB: sbardb
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: sbar_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000" # API
+      - "9001:9001" # Console
+    volumes:
+      - minio_data:/data
+
+  vosk:
+    image: alphacep/kaldi-en:latest
+    container_name: sbar_vosk
+    restart: unless-stopped
+    ports:
+      - "2700:2700"
+    environment:
+      - VOSK_SAMPLE_RATE=16000
+    # No persistent data needed
+
+  vosk-proxy:
+    build:
+      context: ./vosk
+      dockerfile: Dockerfile
+    container_name: sbar_vosk_proxy
+    restart: unless-stopped
+    environment:
+      - VOSK_WS=ws://vosk:2700
+    depends_on:
+      - vosk
+    ports:
+      - "8000:8000"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sbar_backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - minio
+      - vosk
+      - vosk-proxy
+
+volumes:
+  db_data:
+  minio_data:
