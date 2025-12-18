@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+
 import java.io.IOException;
 
 @Component
@@ -19,53 +20,91 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     @Autowired
     private JwtUtil jwtUtil;
+
     @Autowired
     private UserDetailsService userDetailsService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        // Log all requests for debugging
-        System.out.println("Request: " + request.getMethod() + " " + request.getRequestURI() + 
-                          " from " + request.getRemoteAddr());
-        
-        // Skip JWT filter for auth endpoints, stream endpoints, and OPTIONS requests (CORS preflight)
-        String path = request.getRequestURI();
-        String method = request.getMethod();
-        if ("OPTIONS".equals(method) || 
-            (path != null && (path.startsWith("/api/auth") || 
-                              path.startsWith("/api/specializations") || 
-                              path.startsWith("/api/health") ||
-                              path.contains("/stream")))) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-        
+
         final String authHeader = request.getHeader("Authorization");
         String email = null;
         String jwt = null;
+
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            jwt = authHeader.substring(7);
+            // Nettoyer le token pour enlever espaces ou retours chariot
+            jwt = authHeader.substring(7).trim();
             try {
                 email = jwtUtil.extractEmail(jwt);
-            } catch (Exception ignored) { }
+            } catch (Exception e) {
+                System.err.println("Token invalid: " + e.getMessage());
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"error\": \"Invalid token\"}");
+                return;
+            }
+        } else {
+            if (authHeader != null) {
+                System.err.println("Authorization header present but does not start with Bearer: " + authHeader);
+            }
         }
+
+        // Si token présent et valide, authentifier l'utilisateur
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+
                 if (jwtUtil.validateToken(jwt, email)) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities()
+                            userDetails, null, userDetails.getAuthorities()
                     );
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+                    System.out.println("User authenticated: " + email);
+                } else {
+                    System.err.println("Token validation failed for: " + email);
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write("{\"error\": \"Invalid or expired token\"}");
+                    return;
                 }
             } catch (Exception e) {
-                // Log but continue - let Spring Security handle authentication failure
-                System.err.println("JWT filter error: " + e.getMessage());
+                System.err.println("Authentication failed for: " + email + ", error: " + e.getMessage());
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"error\": \"Authentication failed\"}");
+                return;
             }
         }
+
         filterChain.doFilter(request, response);
     }
-}
 
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+
+        // Endpoints publics
+        if (path.startsWith("/api/auth") ||
+                path.startsWith("/api/health") ||
+                path.startsWith("/actuator") ||
+                path.startsWith("/h2-console") ||
+                path.startsWith("/swagger-ui") ||
+                path.startsWith("/v3/api-docs") ||
+                path.equals("/api/specializations") ||
+                path.startsWith("/error")) {
+            return true;
+        }
+
+        // Préflight CORS (OPTIONS requests)
+        if ("OPTIONS".equals(method)) {
+            return true;
+        }
+
+        // GET publics pour lessons et vidéos
+        if ("GET".equals(method) && path.startsWith("/api/lessons")) {
+            return true;
+        }
+
+        return false;
+    }
+}

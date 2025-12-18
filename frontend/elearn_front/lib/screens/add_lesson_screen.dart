@@ -127,4 +127,3 @@ class _AddLessonScreenState extends State<AddLessonScreen> {
     );
   }
 }
-
