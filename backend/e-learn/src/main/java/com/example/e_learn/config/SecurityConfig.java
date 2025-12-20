@@ -25,11 +25,17 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource))
+            .headers(headers -> headers
+                .frameOptions(frameOptions -> frameOptions.disable()) // Allow iframe embedding
+                .contentSecurityPolicy(csp -> csp.policyDirectives("frame-ancestors 'self' *")) // Allow embedding from any origin
+            )
             .sessionManagement(session -> session.sessionCreationPolicy(
                 org.springframework.security.config.http.SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/api/specializations", "/api/health").permitAll()
                 .requestMatchers(new RegexRequestMatcher("/api/lessons/\\d+/stream", null)).permitAll()
+                .requestMatchers(new RegexRequestMatcher("/api/videos/\\d+/stream", null)).permitAll()
+                .requestMatchers(new RegexRequestMatcher("/api/documents/\\d+/download", null)).permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

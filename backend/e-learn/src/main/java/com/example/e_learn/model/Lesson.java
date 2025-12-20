@@ -1,8 +1,11 @@
 package com.example.e_learn.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -14,15 +17,15 @@ public class Lesson {
     private String title;
     private String description;
     @Column(length=2048)
-    private String videoUrl;
+    private String videoUrl; // Legacy field - kept for backward compatibility
     /**
      * Transcript in JSON as a string:
      * Example: '[{"word": "Hello", "start": 0.01, "end": 0.22}, ...]'
      * For legacy, can also be just plain text.
      */
     @Column(length=8192)
-    private String transcript;
-    private int durationSec;
+    private String transcript; // Legacy field - kept for backward compatibility
+    private int durationSec; // Legacy field - total duration of all videos
 
     @Column(length=128)
     private String specialization; // simple denormalized specialization for filtering
@@ -30,6 +33,16 @@ public class Lesson {
     @ManyToMany(mappedBy = "lessons")
     @JsonIgnore // prevent infinite recursion when serializing Lesson -> users -> lessons -> ...
     private Set<User> users = new HashSet<>();
+
+    @OneToMany(mappedBy = "lesson", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties("lesson") // prevent infinite recursion
+    @OrderBy("orderIndex ASC")
+    private List<Video> videos = new ArrayList<>();
+
+    @OneToMany(mappedBy = "lesson", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties("lesson") // prevent infinite recursion
+    @OrderBy("orderIndex ASC")
+    private List<Document> documents = new ArrayList<>();
 
     // Getters and setters
     public Long getId() { return id; }
@@ -48,4 +61,8 @@ public class Lesson {
     public void setSpecialization(String specialization) { this.specialization = specialization; }
     public Set<User> getUsers() { return users; }
     public void setUsers(Set<User> users) { this.users = users; }
+    public List<Video> getVideos() { return videos; }
+    public void setVideos(List<Video> videos) { this.videos = videos; }
+    public List<Document> getDocuments() { return documents; }
+    public void setDocuments(List<Document> documents) { this.documents = documents; }
 }

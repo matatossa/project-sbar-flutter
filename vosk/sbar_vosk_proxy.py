@@ -6,7 +6,7 @@ from flask import Flask, request, jsonify
 from websocket import create_connection, WebSocketConnectionClosedException
 
 VOSK_WS = os.getenv('VOSK_WS', 'ws://vosk:2700')
-CHUNK_SECONDS = 30  # Each audio segment length in seconds
+CHUNK_SECONDS = 30  # 9ssm l audio 3la seconds
 
 app = Flask(__name__)
 
@@ -58,7 +58,7 @@ def recognize():
     try:
         with tempfile.TemporaryDirectory() as td:
             video_path = os.path.join(td, 'input.mp4')
-            # Download video
+            # khod video mn mimo 9000
             import requests
             with requests.get(video_url, stream=True, timeout=60) as r:
                 r.raise_for_status()

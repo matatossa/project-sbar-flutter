@@ -149,5 +149,97 @@ public class MinioService {
             return -1; // Unknown size
         }
     }
+
+    /**
+     * Upload a PDF document to MinIO.
+     */
+    public String uploadDocument(MultipartFile file) throws Exception {
+        if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build())) {
+            minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+        }
+        String filename = UUID.randomUUID() + "_" + file.getOriginalFilename();
+        try (InputStream is = file.getInputStream()) {
+            minioClient.putObject(PutObjectArgs.builder()
+                .bucket(bucketName)
+                .object(filename)
+                .stream(is, file.getSize(), -1)
+                .contentType("application/pdf")
+                .build());
+        }
+        // Return presigned URL for direct access
+        String url = minioClient.getPresignedObjectUrl(
+            io.minio.GetPresignedObjectUrlArgs.builder()
+                .bucket(bucketName)
+                .object(filename)
+                .method(io.minio.http.Method.GET)
+                .build());
+        // Rewrite internal hostname to public one for the browser
+        try {
+            java.net.URI u = new java.net.URI(url);
+            java.net.URI pub = new java.net.URI(publicUrl);
+            url = new java.net.URI(pub.getScheme(), u.getUserInfo(), pub.getHost(), pub.getPort(), u.getPath(), u.getQuery(), u.getFragment()).toString();
+        } catch (Exception ignore) {}
+        return url;
+    }
+
+    /**
+     * Get PDF document stream from MinIO.
+     */
+    public InputStream getDocumentStream(String fileUrl) throws Exception {
+        String objectName = extractObjectName(fileUrl);
+        System.out.println("Getting document stream for object: " + objectName + " in bucket: " + bucketName);
+        try {
+            return minioClient.getObject(GetObjectArgs.builder()
+                .bucket(bucketName)
+                .object(objectName)
+                .build());
+        } catch (Exception e) {
+            System.err.println("Error getting document stream from MinIO: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    /**
+     * Get PDF document stream with range support.
+     */
+    public InputStream getDocumentStream(String fileUrl, long offset, long length) throws Exception {
+        String objectName = extractObjectName(fileUrl);
+        System.out.println("Getting document stream with range: offset=" + offset + ", length=" + length + ", object=" + objectName);
+        try {
+            return minioClient.getObject(GetObjectArgs.builder()
+                .bucket(bucketName)
+                .object(objectName)
+                .offset(offset)
+                .length(length)
+                .build());
+        } catch (Exception e) {
+            System.err.println("Error getting document stream with range from MinIO: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    /**
+     * Get PDF document size for Content-Length header.
+     */
+    public long getDocumentSize(String fileUrl) throws Exception {
+        String objectName = extractObjectName(fileUrl);
+        System.out.println("Getting document size for object: " + objectName + " in bucket: " + bucketName);
+        try {
+            io.minio.StatObjectResponse stat = minioClient.statObject(
+                io.minio.StatObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(objectName)
+                    .build());
+            long size = stat.size();
+            System.out.println("Document size retrieved: " + size);
+            return size;
+        } catch (Exception e) {
+            System.err.println("Error getting document size: " + e.getMessage());
+            e.printStackTrace();
+            return -1; // Unknown size
+        }
+    }
 }
 

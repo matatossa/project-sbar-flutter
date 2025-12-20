@@ -29,14 +29,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         System.out.println("Request: " + request.getMethod() + " " + request.getRequestURI() + 
                           " from " + request.getRemoteAddr());
         
-        // Skip JWT filter for auth endpoints, stream endpoints, and OPTIONS requests (CORS preflight)
+        // Skip JWT filter for auth endpoints, stream endpoints, download endpoints, and OPTIONS requests (CORS preflight)
         String path = request.getRequestURI();
         String method = request.getMethod();
         if ("OPTIONS".equals(method) || 
             (path != null && (path.startsWith("/api/auth") || 
                               path.startsWith("/api/specializations") || 
                               path.startsWith("/api/health") ||
-                              path.contains("/stream")))) {
+                              path.contains("/stream") ||
+                              path.contains("/download")))) {
             filterChain.doFilter(request, response);
             return;
         }
