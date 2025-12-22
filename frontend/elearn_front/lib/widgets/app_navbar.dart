@@ -7,10 +7,10 @@ class AppNavbar extends StatelessWidget implements PreferredSizeWidget {
   final bool showBackButton;
 
   const AppNavbar({
-    Key? key,
+    super.key,
     required this.title,
     this.showBackButton = false,
-  }) : super(key: key);
+  });
 
   @override
   Size get preferredSize => const Size.fromHeight(64);

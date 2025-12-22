@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -26,8 +27,8 @@ class AuthService with ChangeNotifier {
         body: jsonEncode({'email': email, 'password': password}),
       ).timeout(const Duration(seconds: 10));
       
-      print('Login response status: ${response.statusCode}');
-      print('Login response body: ${response.body}');
+      debugPrint('Login response status: ${response.statusCode}');
+      debugPrint('Login response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -40,11 +41,11 @@ class AuthService with ChangeNotifier {
         return null;
       } else {
         final errorBody = response.body;
-        print('Login failed with status ${response.statusCode}: $errorBody');
+        debugPrint('Login failed with status ${response.statusCode}: $errorBody');
         return 'Login failed: ${errorBody.isNotEmpty ? errorBody : 'Unknown error'}';
       }
     } catch (e) {
-      print('Login exception: $e');
+      debugPrint('Login exception: $e');
       return 'Login failed: ${e.toString()}';
     }
   }
@@ -57,8 +58,8 @@ class AuthService with ChangeNotifier {
         body: jsonEncode({'email': email, 'password': password, 'fullName': fullName, 'specialization': specialization}),
       ).timeout(const Duration(seconds: 10));
       
-      print('Signup response status: ${response.statusCode}');
-      print('Signup response body: ${response.body}');
+      debugPrint('Signup response status: ${response.statusCode}');
+      debugPrint('Signup response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -71,11 +72,11 @@ class AuthService with ChangeNotifier {
         return null;
       } else {
         final errorBody = response.body;
-        print('Signup failed with status ${response.statusCode}: $errorBody');
+        debugPrint('Signup failed with status ${response.statusCode}: $errorBody');
         return 'Signup failed: ${errorBody.isNotEmpty ? errorBody : 'Unknown error'}';
       }
     } catch (e) {
-      print('Signup exception: $e');
+      debugPrint('Signup exception: $e');
       return 'Signup failed: ${e.toString()}';
     }
   }
@@ -89,4 +90,3 @@ class AuthService with ChangeNotifier {
     notifyListeners();
   }
 }
-

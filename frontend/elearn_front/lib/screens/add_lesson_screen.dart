@@ -20,7 +20,7 @@ class _AddLessonScreenState extends State<AddLessonScreen> {
   String _desc = '';
   String _specialization = '';
   int _duration = 1;
-  List<PlatformFile> _selectedFiles = [];
+  PlatformFile? _selectedFile;
   bool _uploading = false;
   String? _error;
 
@@ -54,19 +54,14 @@ class _AddLessonScreenState extends State<AddLessonScreen> {
                   }
                   if (snapshot.hasData && snapshot.data!.isNotEmpty) {
                     final specializations = snapshot.data!;
-                    // Remove duplicates and ensure value exists in items
-                    final uniqueSpecializations = specializations.toSet().toList();
-                    final currentValue = _specialization.isNotEmpty && uniqueSpecializations.contains(_specialization) 
-                        ? _specialization 
-                        : null;
                     return DropdownButtonFormField<String>(
                       decoration: const InputDecoration(labelText: 'Specialization (or type new)'),
-                      items: uniqueSpecializations.map((s) => DropdownMenuItem<String>(
+                      items: specializations.map((s) => DropdownMenuItem<String>(
                         value: s,
                         child: Text(s),
                       )).toList(),
                       onChanged: (val) => setState(() { _specialization = val ?? ''; }),
-                      value: currentValue,
+                      value: _specialization.isNotEmpty ? _specialization : null,
                     );
                   }
                   return const SizedBox.shrink();
@@ -81,56 +76,23 @@ class _AddLessonScreenState extends State<AddLessonScreen> {
               const SizedBox(height: 12),
               ElevatedButton.icon(
                 icon: const Icon(Icons.upload),
-                label: Text(_selectedFiles.isEmpty ? 'Pick Videos' : 'Add More Videos'),
+                label: Text(_selectedFile == null ? 'Pick Video' : 'Change Video'),
                 onPressed: () async {
                   final result = await FilePicker.platform.pickFiles(
                     type: FileType.video,
-                    allowMultiple: true,
                     withData: kIsWeb, // Read bytes on web
                   );
-                  if (result != null && result.files.isNotEmpty) {
+                  if (result != null && result.files.single.size > 0) {
                     setState(() {
-                      _selectedFiles.addAll(result.files.where((f) => f.size > 0));
-                      // Auto-calculate duration estimate (approximate: 1-2 min videos = 60-120 seconds per video)
-                      _duration = _selectedFiles.length * 90; // Default to 90 seconds per video
+                      _selectedFile = result.files.single;
+                      // Auto-calculate duration estimate (approximate: 1-2 min videos = 60-120 seconds)
+                      // You can improve this by parsing video metadata later
+                      _duration = 90; // Default to 90 seconds (1.5 min)
                     });
                   }
                 },
               ),
-              if (_selectedFiles.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  '${_selectedFiles.length} video(s) selected:',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                ..._selectedFiles.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final file = entry.value;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${index + 1}. ${file.name}',
-                            style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 20),
-                          onPressed: () {
-                            setState(() {
-                              _selectedFiles.removeAt(index);
-                              _duration = _selectedFiles.length * 90;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ],
+              if (_selectedFile != null) Text(_selectedFile!.name),
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 14.0),
@@ -141,14 +103,14 @@ class _AddLessonScreenState extends State<AddLessonScreen> {
                   ? const CircularProgressIndicator()
                   : ElevatedButton(
                       onPressed: () async {
-                        if (!_formKey.currentState!.validate() || _selectedFiles.isEmpty) {
-                          setState(() { _error = 'Fill all fields and pick at least one video.'; });
+                        if (!_formKey.currentState!.validate() || _selectedFile == null) {
+                          setState(() { _error = 'Fill all fields and pick a video.'; });
                           return;
                         }
                         _formKey.currentState!.save();
                         setState(() { _uploading = true; _error = null; });
                         final ok = await LessonService.addLesson(
-                          context, _title, _desc, _specialization, _duration, _selectedFiles);
+                          context, _title, _desc, _specialization, _duration, [_selectedFile!]);
                         setState(() { _uploading = false; });
                         if (ok) {
                           if (context.mounted) Navigator.pop(context, true);

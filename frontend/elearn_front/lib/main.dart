@@ -27,7 +27,6 @@ class MainApp extends StatelessWidget {
             primary: Color(0xFF0056D2),
             secondary: Color(0xFF1C1D1F),
             surface: Colors.white,
-            background: Color(0xFFF7F9FA),
           ),
           scaffoldBackgroundColor: const Color(0xFFF7F9FA),
           appBarTheme: const AppBarTheme(

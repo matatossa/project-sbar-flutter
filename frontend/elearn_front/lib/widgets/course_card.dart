@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/lesson.dart';
-import 'dart:convert';
-
 class CourseCard extends StatelessWidget {
   final Lesson lesson;
   final VoidCallback? onTap;
@@ -9,12 +7,12 @@ class CourseCard extends StatelessWidget {
   final VoidCallback? onEnroll;
 
   const CourseCard({
-    Key? key,
+    super.key,
     required this.lesson,
     this.onTap,
     this.showEnrollButton = false,
     this.onEnroll,
-  }) : super(key: key);
+  });
 
   String _formatDuration(int seconds) {
     final minutes = (seconds / 60).floor();
@@ -59,7 +57,7 @@ class CourseCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.35),
+                      color: Colors.black.withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Row(
@@ -149,4 +147,3 @@ class CourseCard extends StatelessWidget {
     );
   }
 }
-
