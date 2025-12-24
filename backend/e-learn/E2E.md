@@ -1,6 +1,6 @@
 # UI E2E Tests (Selenium)
 
-The Selenium-based tests are opt-in so they do not run during a normal `mvn test`. Enable them when you have the UI stack running.
+The Selenium-based tests are opt-in so they do not run during a normal `mvn test`. Enable them only when the backend/minio stack is up.
 
 ## Prerequisites
 - Google Chrome installed (WebDriverManager downloads the matching driver automatically).
@@ -11,15 +11,20 @@ The Selenium-based tests are opt-in so they do not run during a normal `mvn test
   - `./mvnw spring-boot:run -Dspring.datasource.url=jdbc:h2:mem:e2e -Dspring.datasource.username=sa -Dspring.datasource.password= -Dspring.jpa.hibernate.ddl-auto=update -Dminio.url=http://localhost:9000 -Dminio.publicUrl=http://localhost:9000`
 
 ### Using docker-compose stack (recommended here)
-- From the repo root (`project-sbar-flutter`), start the services: `docker-compose up -d backend minio postgres vosk vosk-proxy`
+- From the repo root (`project-sbar-flutter`), start the services: `docker compose up -d backend minio postgres vosk vosk-proxy`
 - Create the bucket inside the compose network (one-time):  
   `docker run --rm --network project-sbar-flutter_default -e MC_HOST_minio=http://minioadmin:minioadmin@sbar_minio:9000 minio/mc mb --ignore-existing minio/lesson-videos`
 - Base URLs from the host: backend `http://localhost:8080`, MinIO console `http://localhost:9001`.
 
 ## How to run
-- Enable the tests via the Maven profile (sets `-De2e=true` automatically) and keep headless Chrome:
-  - `./mvnw -Pe2e test -De2e.base-url=http://localhost:8080`
-- Or flip it on explicitly without the profile:
-  - `E2E=true ./mvnw test` (add `-Dheadless=false` if you want to see the browser).
+- Default `.\mvnw.cmd test` skips Selenium E2E. Enable them with either `-Pe2e` or `-De2e=true`.
+- PowerShell needs quotes around any `-D` values containing `http://`.
+- Run all tests (unit/integration + Selenium E2E) once the compose stack is up:  
+  `.\mvnw.cmd -Pe2e test "-De2e.base-url=http://localhost:8080"`
+- Run only the Selenium E2E tests:  
+  `.\mvnw.cmd -Pe2e test "-De2e.base-url=http://localhost:8080" "-Dtest=*E2ETest"`
+- If you prefer toggling without the profile:  
+  `.\mvnw.cmd test "-De2e=true" "-De2e.base-url=http://localhost:8080"`  
+  (add `"-Dheadless=false"` to see the browser).
 
-Screenshots on failures are written to `target/selenium-screens/`.
+Artifacts: screenshots on failures live in `target/selenium-screens/`; successful runs append a short summary to `target/selenium-report.txt`.

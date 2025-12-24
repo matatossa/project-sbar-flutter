@@ -1,35 +1,51 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
+
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>3.5.7</version>
-		<relativePath/> <!-- lookup parent from repository -->
+		<relativePath/>
 	</parent>
+
 	<groupId>com.example</groupId>
 	<artifactId>e-learn</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>e-learn</name>
 	<description>Demo project for Spring Boot</description>
-	<url/>
-	<licenses>
-		<license/>
-	</licenses>
-	<developers>
-		<developer/>
-	</developers>
-	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
-	</scm>
+
 	<properties>
 		<java.version>17</java.version>
+
+		<!-- E2E toggles -->
+		<e2e>false</e2e>
+		<headless>true</headless>
+
+		<!-- Pin surefire (your choice) -->
+		<surefire.version>3.2.5</surefire.version>
+
+		<!-- Selenium via BOM -->
+		<selenium.version>4.39.0</selenium.version>
 	</properties>
+
+	<!-- Align ALL selenium artifacts to the same version -->
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.seleniumhq.selenium</groupId>
+				<artifactId>selenium-bom</artifactId>
+				<version>${selenium.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
 	<dependencies>
+		<!-- Core -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter</artifactId>
@@ -40,45 +56,45 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
-		
-		<!-- Spring Data JPA for ORM -->
+
+		<!-- Spring Data JPA -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
-		
+
 		<!-- PostgreSQL Driver -->
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
 		</dependency>
-		
-		<!-- Spring Security for JWT Auth -->
+
+		<!-- Spring Security -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
-		
+
 		<!-- Validation -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
-		
-		<!-- Flyway for DB migrations -->
+
+		<!-- Flyway -->
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>
 		</dependency>
-		
-		<!-- MinIO Java SDK (S3 compatible) -->
+
+		<!-- MinIO -->
 		<dependency>
 			<groupId>io.minio</groupId>
 			<artifactId>minio</artifactId>
 			<version>8.5.7</version>
 		</dependency>
-		
-		<!-- JSON Web Token (JWT) -->
+
+		<!-- JWT -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
@@ -96,36 +112,47 @@
 			<version>0.12.3</version>
 			<scope>runtime</scope>
 		</dependency>
-		
-		<!-- Test dependencies -->
+
+		<!-- OpenAPI / Swagger UI -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.8.14</version>
+		</dependency>
+
+		<!-- Tests -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
 			<scope>test</scope>
 		</dependency>
-		
-		<!-- UI E2E testing -->
+
+		<!-- Selenium (inherits version from selenium-bom) -->
 		<dependency>
 			<groupId>org.seleniumhq.selenium</groupId>
 			<artifactId>selenium-java</artifactId>
-			<version>4.21.0</version>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- CDP module for Chrome 141 (inherits version from selenium-bom) -->
+		<dependency>
+			<groupId>org.seleniumhq.selenium</groupId>
+			<artifactId>selenium-devtools-v141</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- WebDriverManager -->
 		<dependency>
 			<groupId>io.github.bonigarcia</groupId>
 			<artifactId>webdrivermanager</artifactId>
 			<version>5.9.2</version>
 			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>2.8.14</version>
 		</dependency>
 	</dependencies>
 
@@ -135,31 +162,71 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+
+			<!-- Default: exclude E2E tests -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>${surefire.version}</version>
+				<configuration>
+					<excludes>
+						<exclude>**/*E2ETest.java</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 
 	<profiles>
+		<!-- Enable by: mvn test -Pe2e  OR  mvn test -De2e=true -->
 		<profile>
 			<id>e2e</id>
+			<activation>
+				<property>
+					<name>e2e</name>
+					<value>true</value>
+				</property>
+			</activation>
+
 			<properties>
 				<e2e>true</e2e>
 				<headless>true</headless>
 			</properties>
+
 			<build>
 				<plugins>
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
+							<!-- remove excludes so E2E run -->
+							<excludes combine.self="override"/>
+
 							<systemPropertyVariables>
 								<e2e>${e2e}</e2e>
 								<headless>${headless}</headless>
+
+								<!-- Optional base url -->
 								<e2e.base-url>${e2e.base-url}</e2e.base-url>
+
+								<!-- Optional remote selenium -->
+								<selenium.remote.url>${selenium.remote.url}</selenium.remote.url>
 							</systemPropertyVariables>
 						</configuration>
 					</plugin>
 				</plugins>
 			</build>
+		</profile>
+
+		<!-- Alternative activation by profile only -->
+		<profile>
+			<id>e2eProfile</id>
+			<activation>
+				<activeByDefault>false</activeByDefault>
+			</activation>
+			<properties>
+				<e2e>true</e2e>
+			</properties>
 		</profile>
 	</profiles>
 

@@ -3,15 +3,25 @@ package com.example.e_learn.e2e;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Assumptions;
@@ -22,6 +32,7 @@ import org.openqa.selenium.OutputType;
 import org.openqa.selenium.SessionNotCreatedException;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -38,15 +49,23 @@ public abstract class BaseE2ETest {
 
     protected WebDriver driver;
     protected WebDriverWait wait;
+    private static final Object REPORT_LOCK = new Object();
+    private final Set<String> visitedUrls = new LinkedHashSet<>();
+    private Path tempUserDataDir;
+    private boolean tempUserDataDirInitialized;
 
     @RegisterExtension
-    TestWatcher screenshotWatcher = new SeleniumTestWatcher(this::currentDriver);
+    TestWatcher screenshotWatcher = new SeleniumTestWatcher(
+        this::currentDriver,
+        this::cleanupTempUserDataDir,
+        context -> appendSuccessReport(context.getDisplayName())
+    );
 
     @BeforeEach
     void setUpDriver() {
         Assumptions.assumeTrue(
             isE2eEnabled(),
-            "E2E tests disabled. Enable with -De2e=true or E2E=true"
+            "E2E tests disabled. Enable with -De2e=true, -Pe2e, or E2E=true"
         );
 
         WebDriverManager.chromedriver().setup();
@@ -62,16 +81,22 @@ public abstract class BaseE2ETest {
             return new ChromeDriver(options);
         } catch (SessionNotCreatedException ex) {
             // Headless Chrome can crash on some Windows setups; retry without headless flags.
-            if (headlessRequested) {
-                try {
-                    ChromeOptions nonHeadless = buildChromeOptions(false);
-                    return new ChromeDriver(nonHeadless);
-                } catch (SessionNotCreatedException ignored) {
-                    // Fall through to original exception below.
-                }
-            }
-            throw ex;
+            return retryNonHeadlessOrThrow(headlessRequested, ex);
+        } catch (WebDriverException ex) {
+            return retryNonHeadlessOrThrow(headlessRequested, ex);
         }
+    }
+
+    private WebDriver retryNonHeadlessOrThrow(boolean headlessRequested, WebDriverException original) {
+        if (headlessRequested) {
+            try {
+                ChromeOptions nonHeadless = buildChromeOptions(false);
+                return new ChromeDriver(nonHeadless);
+            } catch (WebDriverException ignored) {
+                // Fall through to original exception below.
+            }
+        }
+        throw original;
     }
 
     private ChromeOptions buildChromeOptions(boolean headless) {
@@ -86,19 +111,51 @@ public abstract class BaseE2ETest {
         options.addArguments("--window-size=1280,720");
         options.addArguments("--remote-allow-origins=*");
         options.addArguments("--disable-gpu");
-        options.addArguments("--disable-features=RendererCodeIntegrity");
-        options.addArguments("--disable-features=ChromeWhatsNewUI");
+        options.addArguments("--disable-features=RendererCodeIntegrity,ChromeWhatsNewUI");
         options.addArguments("--disable-extensions");
         options.addArguments("--profile-directory=Default");
         options.addArguments("--no-first-run");
         options.addArguments("--no-default-browser-check");
-        try {
-            Path userDataDir = Files.createTempDirectory("selenium-profile");
+        Path userDataDir = ensureTempUserDataDir();
+        if (userDataDir != null) {
             options.addArguments("--user-data-dir=" + userDataDir.toAbsolutePath());
-        } catch (IOException ignored) {
-            // If we cannot create a temp profile directory, continue with defaults.
         }
         return options;
+    }
+
+    private Path ensureTempUserDataDir() {
+        if (tempUserDataDirInitialized) {
+            return tempUserDataDir;
+        }
+        tempUserDataDirInitialized = true;
+        try {
+            tempUserDataDir = Files.createTempDirectory("selenium-profile");
+        } catch (IOException ignored) {
+            tempUserDataDir = null;
+        }
+        return tempUserDataDir;
+    }
+
+    private void cleanupTempUserDataDir() {
+        if (tempUserDataDir == null) {
+            return;
+        }
+        try (java.util.stream.Stream<Path> paths = Files.walk(tempUserDataDir)) {
+            paths
+                .sorted(Comparator.reverseOrder())
+                .forEach(path -> {
+                    try {
+                        Files.deleteIfExists(path);
+                    } catch (IOException ignored) {
+                        // Best-effort delete
+                    }
+                });
+        } catch (IOException ignored) {
+            // Best-effort cleanup
+        } finally {
+            tempUserDataDir = null;
+            tempUserDataDirInitialized = false;
+        }
     }
 
     protected boolean isHeadless() {
@@ -119,6 +176,51 @@ public abstract class BaseE2ETest {
             }
         }
         throw new NoSuchElementException("None of the provided locators matched: " + Arrays.toString(locators));
+    }
+
+    protected void waitForUrlReady(String url, Duration timeout) {
+        HttpClient client = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
+        Instant deadline = Instant.now().plus(timeout);
+        IOException lastException = null;
+        while (Instant.now().isBefore(deadline)) {
+            try {
+                HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(5))
+                    .GET()
+                    .build();
+                HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
+                int statusCode = response.statusCode();
+                if (statusCode >= 200 && statusCode < 500) {
+                    return;
+                }
+            } catch (IOException ioEx) {
+                lastException = ioEx;
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while waiting for " + url, interruptedException);
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while waiting for " + url, interruptedException);
+            }
+        }
+        String message = "Timed out waiting for " + url + " to become reachable within " + timeout.toSeconds() + "s";
+        if (lastException != null) {
+            message += " (last error: " + lastException.getMessage() + ")";
+        }
+        throw new IllegalStateException(message);
+    }
+
+    protected void recordVisitedUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return;
+        }
+        visitedUrls.add(url);
     }
 
     /**
@@ -159,11 +261,40 @@ public abstract class BaseE2ETest {
         return trimmedBase + normalizedPath;
     }
 
+    private void appendSuccessReport(String displayName) {
+        Path reportFile = Paths.get("target", "selenium-report.txt");
+        try {
+            Files.createDirectories(reportFile.getParent());
+            String urlSummary = visitedUrls.isEmpty()
+                ? "URLs tested: none recorded"
+                : "URLs tested: " + String.join(", ", visitedUrls);
+            String line = "%s PASSED | %s%n".formatted(displayName, urlSummary);
+            synchronized (REPORT_LOCK) {
+                Files.writeString(
+                    reportFile,
+                    line,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND
+                );
+            }
+        } catch (IOException ignored) {
+            // Best-effort reporting
+        }
+    }
+
     private static class SeleniumTestWatcher implements TestWatcher {
         private final Supplier<Optional<WebDriver>> driverSupplier;
+        private final Runnable tempDirCleanup;
+        private final Consumer<org.junit.jupiter.api.extension.ExtensionContext> successHandler;
 
-        SeleniumTestWatcher(Supplier<Optional<WebDriver>> driverSupplier) {
+        SeleniumTestWatcher(
+            Supplier<Optional<WebDriver>> driverSupplier,
+            Runnable tempDirCleanup,
+            Consumer<org.junit.jupiter.api.extension.ExtensionContext> successHandler
+        ) {
             this.driverSupplier = driverSupplier;
+            this.tempDirCleanup = tempDirCleanup;
+            this.successHandler = successHandler;
         }
 
         @Override
@@ -176,6 +307,13 @@ public abstract class BaseE2ETest {
 
         @Override
         public void testSuccessful(org.junit.jupiter.api.extension.ExtensionContext context) {
+            if (successHandler != null) {
+                try {
+                    successHandler.accept(context);
+                } catch (Exception ignored) {
+                    // Best-effort reporting
+                }
+            }
             driverSupplier.get().ifPresent(this::quit);
         }
 
@@ -206,6 +344,11 @@ public abstract class BaseE2ETest {
                 driver.quit();
             } catch (Exception ignored) {
                 // Best-effort shutdown
+            }
+            try {
+                tempDirCleanup.run();
+            } catch (Exception ignored) {
+                // Best-effort cleanup
             }
         }
     }
