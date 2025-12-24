@@ -32,7 +32,14 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(
                 org.springframework.security.config.http.SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/specializations", "/api/health").permitAll()
+                .requestMatchers(
+                    "/api/auth/**",
+                    "/api/specializations",
+                    "/api/health",
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/v3/api-docs/**"
+                ).permitAll()
                 .requestMatchers(new RegexRequestMatcher("/api/lessons/\\d+/stream", null)).permitAll()
                 .requestMatchers(new RegexRequestMatcher("/api/videos/\\d+/stream", null)).permitAll()
                 .requestMatchers(new RegexRequestMatcher("/api/documents/\\d+/download", null)).permitAll()
